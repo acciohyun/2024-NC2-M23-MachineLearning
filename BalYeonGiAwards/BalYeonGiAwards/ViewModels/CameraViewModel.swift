@@ -79,7 +79,7 @@ class CameraViewModel: NSObject, AVCapturePhotoCaptureDelegate, ObservableObject
         }
     }
     
-    func setupCaptureSession(){
+    func setupCaptureSession() {
         if let captureDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: AVMediaType.video, position: .front){
             do {
                 let input = try AVCaptureDeviceInput(device: captureDevice)
@@ -93,41 +93,34 @@ class CameraViewModel: NSObject, AVCapturePhotoCaptureDelegate, ObservableObject
                 captureSession.addOutput(output)
             }
             captureSession.sessionPreset = .photo
-            DispatchQueue.global(qos: .background).async {
+            Task{
                 self.captureSession.startRunning()
             }
         }
     }
-    func takePhoto(){
-        DispatchQueue.global(qos: .background).async{
-            self.output.capturePhoto(with: AVCapturePhotoSettings(), delegate: self)
-        }
+    func takePhoto() async {
+        self.output.capturePhoto(with: AVCapturePhotoSettings(), delegate: self)
     }
     
     func retakePhoto(){
-        DispatchQueue.global(qos: .background).async{
-            DispatchQueue.main.async {
-                self.currentPhoto = nil
-                self.currentState = .takePhoto
-                self.currentNum += 1
-            }
-        }
+        self.currentPhoto = nil
+        self.currentState = .takePhoto
+        self.currentNum += 1
     }
     
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: (any Error)?) {
         if error != nil{
-            print("Error while taking photo: \(error)")
+            print("Error while taking photo: \(String(describing: error))")
             return
         }
         
-        DispatchQueue.global(qos: .background).async{ [self] in
-            
+        Task{
             guard let imageData = photo.fileDataRepresentation() else {
                 print("Error while generating image from photo capture data.");
                 return
             }
             
-            guard var uiImage = UIImage(data: imageData) else {
+            guard let uiImage = UIImage(data: imageData) else {
                 print("Error: Unable to generate UIImage from image data.");
                 return
             }
@@ -149,20 +142,23 @@ class CameraViewModel: NSObject, AVCapturePhotoCaptureDelegate, ObservableObject
             }
             let croppedImage = UIImage(cgImage: cgImage, scale: uiImage.scale, orientation: .leftMirrored)
             
-            DispatchQueue.main.async{ [self] in
-                self.currentPhoto = croppedImage
-                if self.currentNum + 1 == self.numPeople{
-                    self.currentState = .moveToNextStep
-                }else{
-                    self.currentState = .nextPerson
-                }
-                if let image = currentPhoto{
-                    if currentNum == 0{
-                        photos = []
-                    }
-                    photos.append(image)
-                }
+            await moveToNextPersonOrStage(image: croppedImage)
+        }
+    }
+    
+    @MainActor
+    func moveToNextPersonOrStage(image croppedImage: UIImage){
+        self.currentPhoto = croppedImage
+        if self.currentNum + 1 == self.numPeople{
+            self.currentState = .moveToNextStep
+        }else{
+            self.currentState = .nextPerson
+        }
+        if let image = currentPhoto{
+            if currentNum == 0{
+                photos = []
             }
+            photos.append(image)
         }
     }
     

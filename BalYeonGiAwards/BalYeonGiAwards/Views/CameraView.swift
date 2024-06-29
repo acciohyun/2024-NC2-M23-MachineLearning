@@ -45,8 +45,8 @@ struct CameraView: View {
                     .padding(.top, 18)
                     .offset(y:-80)
                 Button{
-                    DispatchQueue.global(qos: .background).async {
-                        cameraVM.takePhoto()
+                    Task{
+                        await cameraVM.takePhoto()
                     }
                 }label: {
                     ZStack{
@@ -65,9 +65,7 @@ struct CameraView: View {
                     .padding(.top, 18)
                 Spacer()
                 Button{
-                    DispatchQueue.global(qos: .background).async {
-                        cameraVM.retakePhoto()
-                    }
+                    cameraVM.retakePhoto()
                 }label: {
                     ZStack{
                         RoundedRectangle(cornerRadius: 14)
@@ -100,17 +98,12 @@ struct CameraView: View {
         }
         .navigationBarBackButtonHidden()
         .task{
-            do{
-                switch await cameraVM.checkCaptureAuthorizationStatus() {
-                case .permitted:
-                    try cameraVM.setupCaptureSession()
-                case .notPermitted:
-                    break
-                }
-            } catch {
-                print("Error: Unable to setup")
+            switch await cameraVM.checkCaptureAuthorizationStatus() {
+            case .permitted:
+                cameraVM.setupCaptureSession()
+            case .notPermitted:
+                break
             }
         }
-        
     }
 }
